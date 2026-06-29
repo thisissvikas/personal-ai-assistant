@@ -1,19 +1,9 @@
-from typing import Any
-
 import ollama
+from langchain_ollama import ChatOllama
 
 
-def chat(
-    model: str,
-    messages: list[dict[str, Any]],
-    tools: list[dict[str, Any]] | None = None,
-    host: str = "http://localhost:11434",
-) -> ollama.ChatResponse:
-    client = ollama.Client(host=host)
-    kwargs: dict[str, Any] = {"model": model, "messages": messages}
-    if tools:
-        kwargs["tools"] = tools
-    return client.chat(**kwargs)
+def get_chat_model(model: str, host: str = "http://localhost:11434") -> ChatOllama:
+    return ChatOllama(model=model, base_url=host)
 
 
 def is_available(model: str, host: str = "http://localhost:11434") -> bool:

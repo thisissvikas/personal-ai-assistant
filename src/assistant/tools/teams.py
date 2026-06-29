@@ -1,77 +1,11 @@
 import httpx
+from langchain_core.tools import StructuredTool
 
 from .. import auth
 from .. import config as cfg_module
 from .registry import register
 
 _GRAPH = "https://graph.microsoft.com/v1.0"
-
-_FIND_USER_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "find_teams_user",
-        "description": (
-            "Look up a Microsoft 365 user by name or partial name. Returns their display name "
-            "and user ID needed for sending DMs. Call this before send_teams_dm when you only "
-            "have a name, not an email."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Full or partial display name to search for",
-                },
-            },
-            "required": ["name"],
-        },
-    },
-}
-
-_SEND_DM_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "send_teams_dm",
-        "description": (
-            "Send a direct message to a person on Microsoft Teams. "
-            "Use the user's email address or user ID. "
-            "If you only have their name, call find_teams_user first."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "user": {
-                    "type": "string",
-                    "description": "Recipient's email address or Microsoft user ID",
-                },
-                "message": {"type": "string", "description": "Message text to send"},
-            },
-            "required": ["user", "message"],
-        },
-    },
-}
-
-_SEND_CHANNEL_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "send_channel_message",
-        "description": (
-            "Post a message to a Microsoft Teams channel. Specify the team name and channel name."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "team_name": {"type": "string", "description": "The display name of the team"},
-                "channel_name": {
-                    "type": "string",
-                    "description": "The channel name (e.g. 'General')",
-                },
-                "message": {"type": "string", "description": "Message text to post"},
-            },
-            "required": ["team_name", "channel_name", "message"],
-        },
-    },
-}
 
 
 def _token() -> str:
@@ -107,7 +41,6 @@ def _send_teams_dm(user: str, message: str) -> str:
     token = _token()
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-    # Create or get existing 1:1 chat
     chat_resp = httpx.post(
         f"{_GRAPH}/me/chats",
         headers=headers,
@@ -130,7 +63,6 @@ def _send_teams_dm(user: str, message: str) -> str:
     chat_resp.raise_for_status()
     chat_id = chat_resp.json()["id"]
 
-    # Send message
     msg_resp = httpx.post(
         f"{_GRAPH}/chats/{chat_id}/messages",
         headers=headers,
@@ -145,7 +77,6 @@ def _send_channel_message(team_name: str, channel_name: str, message: str) -> st
     token = _token()
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Resolve team
     teams_resp = httpx.get(
         f"{_GRAPH}/me/joinedTeams",
         headers=headers,
@@ -162,7 +93,6 @@ def _send_channel_message(team_name: str, channel_name: str, message: str) -> st
         team_names = ", ".join(t["displayName"] for t in teams)
         return f"Team '{team_name}' not found. Your teams: {team_names}"
 
-    # Resolve channel
     chan_resp = httpx.get(
         f"{_GRAPH}/teams/{team['id']}/channels",
         headers=headers,
@@ -179,7 +109,6 @@ def _send_channel_message(team_name: str, channel_name: str, message: str) -> st
         chan_names = ", ".join(c["displayName"] for c in channels)
         return f"Channel '{channel_name}' not found in {team_name}. Channels: {chan_names}"
 
-    # Post message
     post_resp = httpx.post(
         f"{_GRAPH}/teams/{team['id']}/channels/{channel['id']}/messages",
         headers={**headers, "Content-Type": "application/json"},
@@ -190,6 +119,36 @@ def _send_channel_message(team_name: str, channel_name: str, message: str) -> st
     return f"Message posted to #{channel_name} in {team_name}."
 
 
-register(_FIND_USER_SCHEMA, _find_teams_user)
-register(_SEND_DM_SCHEMA, _send_teams_dm)
-register(_SEND_CHANNEL_SCHEMA, _send_channel_message)
+register(
+    StructuredTool.from_function(
+        func=_find_teams_user,
+        name="find_teams_user",
+        description=(
+            "Look up a Microsoft 365 user by name or partial name. Returns their display name "
+            "and user ID needed for sending DMs. Call this before send_teams_dm when you only "
+            "have a name, not an email."
+        ),
+    )
+)
+
+register(
+    StructuredTool.from_function(
+        func=_send_teams_dm,
+        name="send_teams_dm",
+        description=(
+            "Send a direct message to a person on Microsoft Teams. "
+            "Use the user's email address or user ID. "
+            "If you only have their name, call find_teams_user first."
+        ),
+    )
+)
+
+register(
+    StructuredTool.from_function(
+        func=_send_channel_message,
+        name="send_channel_message",
+        description=(
+            "Post a message to a Microsoft Teams channel. Specify the team name and channel name."
+        ),
+    )
+)

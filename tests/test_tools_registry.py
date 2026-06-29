@@ -2,9 +2,10 @@
 
 import sys
 
+from langchain_core.tools import StructuredTool
+
 
 def _fresh_registry():
-    """Reload registry to get a clean slate between tests."""
     mods_to_remove = [k for k in sys.modules if k.startswith("assistant.tools")]
     for mod in mods_to_remove:
         del sys.modules[mod]
@@ -13,52 +14,35 @@ def _fresh_registry():
     return registry
 
 
+def _make_tool(name: str) -> StructuredTool:
+    fn = lambda: f"{name} ran"  # noqa: E731
+    fn.__name__ = name
+    return StructuredTool.from_function(func=fn, name=name, description=f"tool {name}")
+
+
 def test_register_and_retrieve():
     registry = _fresh_registry()
-
-    schema = {"type": "function", "function": {"name": "noop", "description": "test"}}
-    registry.register(schema, lambda: "ok")
+    tool = _make_tool("noop")
+    registry.register(tool)
 
     assert "noop" in registry.available_names()
-    assert any(s["function"]["name"] == "noop" for s in registry.schemas())
+    assert any(t.name == "noop" for t in registry.tools())
 
 
-def test_execute_known_tool():
-    registry = _fresh_registry()
-
-    schema = {"type": "function", "function": {"name": "add", "description": "add two numbers"}}
-    registry.register(schema, lambda x, y: x + y)
-
-    result = registry.execute("add", {"x": 2, "y": 3})
-    assert result == 5
-
-
-def test_execute_unknown_tool_returns_error_string():
-    registry = _fresh_registry()
-    result = registry.execute("nonexistent_tool", {})
-    assert "Unknown tool" in str(result)
-
-
-def test_execute_catches_tool_exceptions():
-    registry = _fresh_registry()
-
-    schema = {"type": "function", "function": {"name": "boom", "description": ""}}
-    registry.register(schema, lambda: 1 / 0)
-
-    result = registry.execute("boom", {})
-    assert "Tool error" in str(result)
-
-
-def test_schemas_returns_all_registered():
+def test_tools_returns_all_registered():
     registry = _fresh_registry()
     for i in range(3):
-        schema = {"type": "function", "function": {"name": f"tool_{i}", "description": ""}}
-        registry.register(schema, lambda: None)
+        registry.register(_make_tool(f"tool_{i}"))
 
-    names = [s["function"]["name"] for s in registry.schemas()]
+    names = [t.name for t in registry.tools()]
     assert "tool_0" in names
     assert "tool_1" in names
     assert "tool_2" in names
+
+
+def test_available_names_empty_on_fresh_registry():
+    registry = _fresh_registry()
+    assert registry.available_names() == []
 
 
 def test_tool_modules_register_on_import():
@@ -70,3 +54,11 @@ def test_tool_modules_register_on_import():
     assert "create_note" in names
     assert "search_notes" in names
     assert "read_document" in names
+
+
+def test_register_overwrites_same_name():
+    registry = _fresh_registry()
+    registry.register(_make_tool("dup"))
+    registry.register(_make_tool("dup"))
+
+    assert registry.available_names().count("dup") == 1

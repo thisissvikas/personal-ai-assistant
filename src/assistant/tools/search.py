@@ -1,29 +1,7 @@
+from langchain_core.tools import StructuredTool
+
 from .. import config as cfg_module
 from .registry import register
-
-_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "web_search",
-        "description": (
-            "Search the web for up-to-date information and return a list of results "
-            "with titles, snippets, and URLs. Use this when the user asks about current "
-            "events, recent news, or anything outside your training knowledge."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "The search query"},
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum number of results to return (default 5)",
-                    "default": 5,
-                },
-            },
-            "required": ["query"],
-        },
-    },
-}
 
 
 def _web_search(query: str, max_results: int = 5) -> str:
@@ -46,4 +24,14 @@ def _web_search(query: str, max_results: int = 5) -> str:
     return "\n\n---\n\n".join(results)
 
 
-register(_SCHEMA, _web_search)
+register(
+    StructuredTool.from_function(
+        func=_web_search,
+        name="web_search",
+        description=(
+            "Search the web for up-to-date information and return a list of results "
+            "with titles, snippets, and URLs. Use this when the user asks about current "
+            "events, recent news, or anything outside your training knowledge."
+        ),
+    )
+)

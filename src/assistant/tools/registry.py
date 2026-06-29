@@ -1,26 +1,14 @@
-from collections.abc import Callable
-from typing import Any
+from langchain_core.tools import BaseTool
 
-_tools: dict[str, tuple[dict, Callable]] = {}
-
-
-def register(schema: dict, fn: Callable) -> None:
-    name = schema["function"]["name"]
-    _tools[name] = (schema, fn)
+_tools: dict[str, BaseTool] = {}
 
 
-def schemas() -> list[dict]:
-    return [schema for schema, _ in _tools.values()]
+def register(tool: BaseTool) -> None:
+    _tools[tool.name] = tool
 
 
-def execute(name: str, arguments: dict[str, Any]) -> Any:
-    if name not in _tools:
-        return f"Unknown tool: {name}"
-    _, fn = _tools[name]
-    try:
-        return fn(**arguments)
-    except Exception as e:
-        return f"Tool error ({name}): {e}"
+def tools() -> list[BaseTool]:
+    return list(_tools.values())
 
 
 def available_names() -> list[str]:

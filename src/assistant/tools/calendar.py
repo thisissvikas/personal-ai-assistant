@@ -1,81 +1,13 @@
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from langchain_core.tools import StructuredTool
 
 from .. import auth
 from .. import config as cfg_module
 from .registry import register
 
 _GRAPH = "https://graph.microsoft.com/v1.0"
-
-_GET_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "get_today_schedule",
-        "description": (
-            "Fetch the user's calendar events for today (or a specified date range). "
-            "Use this when asked about the schedule, agenda, meetings, or free slots."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string",
-                    "description": "Date to fetch events for (YYYY-MM-DD). Defaults to today.",
-                },
-                "days": {
-                    "type": "integer",
-                    "description": "Number of days to look ahead (default 1).",
-                    "default": 1,
-                },
-            },
-        },
-    },
-}
-
-_CREATE_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "create_meeting",
-        "description": (
-            "Create a calendar event / meeting in Outlook. Adds attendees and sends invites. "
-            "Use this when the user asks to schedule a call, book a meeting, or set up a catch-up."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "subject": {"type": "string", "description": "Meeting title/subject"},
-                "attendees": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of attendee email addresses or display names",
-                },
-                "start": {
-                    "type": "string",
-                    "description": "Start time in ISO 8601 format or natural language (e.g. '2024-07-15T14:00:00')",
-                },
-                "end": {
-                    "type": "string",
-                    "description": "End time in ISO 8601 format. If omitted, defaults to 30 minutes after start.",
-                },
-                "body": {
-                    "type": "string",
-                    "description": "Optional meeting description/agenda",
-                },
-                "location": {
-                    "type": "string",
-                    "description": "Optional meeting location or Teams link request",
-                },
-                "is_online": {
-                    "type": "boolean",
-                    "description": "Whether to add a Teams meeting link (default true)",
-                    "default": True,
-                },
-            },
-            "required": ["subject", "start"],
-        },
-    },
-}
 
 
 def _token() -> str:
@@ -200,5 +132,24 @@ def _create_meeting(
     return result
 
 
-register(_GET_SCHEMA, _get_today_schedule)
-register(_CREATE_SCHEMA, _create_meeting)
+register(
+    StructuredTool.from_function(
+        func=_get_today_schedule,
+        name="get_today_schedule",
+        description=(
+            "Fetch the user's calendar events for today (or a specified date range). "
+            "Use this when asked about the schedule, agenda, meetings, or free slots."
+        ),
+    )
+)
+
+register(
+    StructuredTool.from_function(
+        func=_create_meeting,
+        name="create_meeting",
+        description=(
+            "Create a calendar event / meeting in Outlook. Adds attendees and sends invites. "
+            "Use this when the user asks to schedule a call, book a meeting, or set up a catch-up."
+        ),
+    )
+)
