@@ -7,18 +7,34 @@ from .registry import register
 
 
 def _escape_applescript(text: str) -> str:
-    return text.replace("\\", "\\\\").replace('"', '\\"')
+    """Escape characters that would break an AppleScript double-quoted string literal.
+
+    Newlines cannot appear inside a single-line -e argument, so they are
+    replaced with a space rather than propagated.
+    """
+    return (
+        text.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r\n", " ")
+        .replace("\n", " ")
+        .replace("\r", " ")
+    )
 
 
 def _create_note(title: str, body: str) -> str:
+    """Create a note in Apple Notes via AppleScript.
+
+    Creates the target folder if it doesn't already exist. The folder name
+    comes from ``PAI_NOTES_FOLDER`` in config (default: ``Personal``).
+    """
     cfg = cfg_module.load()
-    folder = cfg.get("notes", {}).get("folder", "Personal")
+    folder_name = cfg.get("notes", {}).get("folder", "Personal")
 
     safe_title = _escape_applescript(title)
     safe_body = _escape_applescript(body)
-    safe_folder = _escape_applescript(folder)
+    safe_folder = _escape_applescript(folder_name)
 
-    script = f'''
+    applescript = f'''
 tell application "Notes"
     if not (exists folder "{safe_folder}") then
         make new folder with properties {{name:"{safe_folder}"}}
@@ -28,16 +44,22 @@ tell application "Notes"
     end tell
 end tell
 '''
-    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-    if result.returncode != 0:
-        return f"Failed to create note: {result.stderr.strip()}"
-    return f'Note "{title}" created in Apple Notes (folder: {folder}).'
+    process_result = subprocess.run(
+        ["osascript", "-e", applescript], capture_output=True, text=True
+    )
+    if process_result.returncode != 0:
+        return f"Failed to create note: {process_result.stderr.strip()}"
+    return f'Note "{title}" created in Apple Notes (folder: {folder_name}).'
 
 
 def _search_notes(query: str) -> str:
+    """Search all Apple Notes for the given keyword via AppleScript.
+
+    Returns matching note titles plus a 200-character content snippet for each.
+    """
     safe_query = _escape_applescript(query.lower())
 
-    script = f'''
+    applescript = f'''
 set matchingNotes to {{}}
 tell application "Notes"
     repeat with aNote in every note
@@ -50,11 +72,13 @@ tell application "Notes"
 end tell
 return matchingNotes
 '''
-    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-    if result.returncode != 0:
-        return f"Failed to search notes: {result.stderr.strip()}"
+    process_result = subprocess.run(
+        ["osascript", "-e", applescript], capture_output=True, text=True
+    )
+    if process_result.returncode != 0:
+        return f"Failed to search notes: {process_result.stderr.strip()}"
 
-    output = result.stdout.strip()
+    output = process_result.stdout.strip()
     if not output or output == "{}":
         return f"No notes found matching '{query}'."
     return output

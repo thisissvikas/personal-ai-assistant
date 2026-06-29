@@ -5,23 +5,30 @@ from .registry import register
 
 
 def _web_search(query: str, max_results: int = 5) -> str:
+    """Search DuckDuckGo and return formatted result snippets.
+
+    Falls back to the ``PAI_SEARCH_MAX_RESULTS`` config value when
+    ``max_results`` is not explicitly provided by the LLM.
+    """
     try:
         from duckduckgo_search import DDGS
     except ImportError:
-        return "duckduckgo-search package not installed. Run: pip install duckduckgo-search"
+        return "duckduckgo-search package not installed. Run: uv sync"
 
     cfg = cfg_module.load()
-    max_r = max_results or cfg.get("search", {}).get("max_results", 5)
+    result_limit = max_results or cfg.get("search", {}).get("max_results", 5)
 
-    results = []
+    formatted_results = []
     with DDGS() as ddgs:
-        for r in ddgs.text(query, max_results=max_r):
-            results.append(f"**{r['title']}**\n{r['body']}\nURL: {r['href']}")
+        for search_hit in ddgs.text(query, max_results=result_limit):
+            formatted_results.append(
+                f"**{search_hit['title']}**\n{search_hit['body']}\nURL: {search_hit['href']}"
+            )
 
-    if not results:
+    if not formatted_results:
         return "No results found."
 
-    return "\n\n---\n\n".join(results)
+    return "\n\n---\n\n".join(formatted_results)
 
 
 register(

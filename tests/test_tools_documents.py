@@ -4,11 +4,6 @@ from unittest.mock import MagicMock, patch
 
 
 def _get_read_document():
-    import sys
-
-    for k in list(sys.modules):
-        if "assistant.tools" in k:
-            del sys.modules[k]
     from assistant.tools.documents import _read_document
 
     return _read_document

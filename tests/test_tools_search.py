@@ -4,11 +4,6 @@ from unittest.mock import patch
 
 
 def _get_web_search():
-    import sys
-
-    for k in list(sys.modules):
-        if "assistant.tools" in k:
-            del sys.modules[k]
     from assistant.tools.search import _web_search
 
     return _web_search
