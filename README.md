@@ -219,7 +219,7 @@ The agent loop automatically picks up any registered tool on the next run.
 GitHub Actions runs on every push and pull request to `main`:
 
 - **lint** — `ruff check` + `ruff format --check`
-- **test** — `pytest` with coverage gate (60% minimum)
+- **test** — `pytest` with coverage gate (50% minimum)
 
 See `.github/workflows/ci.yml`.
 
