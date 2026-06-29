@@ -24,14 +24,12 @@ def _ensure_config() -> None:
         console.print(
             Panel(
                 f"[yellow]Config file not found.[/yellow]\n\n"
-                f"Copy [bold].env.example[/bold] to:\n"
-                f"  [cyan]{cfg_path}[/cyan]\n\n"
+                f"Copy [bold].env.example[/bold] to [cyan]{cfg_path}[/cyan] "
                 f"and fill in your values. Running with defaults for now.",
                 title="Setup",
                 border_style="yellow",
             )
         )
-        cfg_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _check_ollama(agent: Agent) -> None:
