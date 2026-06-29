@@ -4,11 +4,6 @@ from unittest.mock import MagicMock, patch
 
 
 def _make_agent(model="test-model"):
-    import sys
-
-    for k in list(sys.modules):
-        if k.startswith("assistant") and k != "assistant.config":
-            del sys.modules[k]
     with patch(
         "assistant.config.load",
         return_value={
@@ -36,11 +31,6 @@ def test_agent_uses_configured_model():
 
 
 def test_agent_uses_explicit_model_override():
-    import sys
-
-    for k in list(sys.modules):
-        if k.startswith("assistant"):
-            del sys.modules[k]
     with patch(
         "assistant.config.load",
         return_value={

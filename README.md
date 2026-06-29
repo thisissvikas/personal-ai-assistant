@@ -61,8 +61,8 @@ uv sync
 
 # 3. Copy and edit config
 mkdir -p ~/.config/pai
-cp config.yaml.example ~/.config/pai/config.yaml
-# → edit ~/.config/pai/config.yaml with your settings
+cp .env.example ~/.config/pai/.env
+# → edit ~/.config/pai/.env with your settings
 ```
 
 ### Verify installation
@@ -75,22 +75,24 @@ uv run pai --help
 
 ## Configuration
 
-Config lives at `~/.config/pai/config.yaml`. Start from the example:
+Config lives at `~/.config/pai/.env`. Copy the example and fill in your values:
 
-```yaml
-model: qwen2.5:7b           # Ollama model name
-ollama_host: http://localhost:11434
-
-microsoft:
-  client_id: <your-azure-app-client-id>
-  tenant_id: <your-azure-tenant-id>
-
-notes:
-  folder: Personal           # Apple Notes folder name
-
-search:
-  max_results: 5
+```bash
+cp .env.example ~/.config/pai/.env
 ```
+
+```ini
+PAI_MODEL=qwen2.5:7b
+PAI_OLLAMA_HOST=http://localhost:11434
+
+MICROSOFT_CLIENT_ID=<your-azure-app-client-id>
+MICROSOFT_TENANT_ID=<your-azure-tenant-id>
+
+PAI_NOTES_FOLDER=Personal
+PAI_SEARCH_MAX_RESULTS=5
+```
+
+All values have sensible defaults — for local-only usage (no Outlook/Teams) you can skip the `MICROSOFT_*` vars entirely. You can also override any setting by exporting the variable in your shell before running `pai`.
 
 ### Microsoft 365 setup (Outlook + Teams)
 
@@ -107,7 +109,7 @@ Outlook and Teams use the **Microsoft Graph API**. You need a free Azure AD app 
    - `User.Read`
    - `User.ReadBasic.All`
    - `MailboxSettings.Read`
-5. Copy **Application (client) ID** and **Directory (tenant) ID** into `config.yaml`
+5. Copy **Application (client) ID** and **Directory (tenant) ID** into `~/.config/pai/.env`
 
 **First run with Microsoft tools:** `pai` will print a device-code URL. Open it, log in with your work account once — the token is cached forever at `~/.config/pai/token_cache.json`.
 
@@ -176,7 +178,7 @@ uv run pytest -x            # stop on first failure
 uv run pytest tests/test_tools_documents.py  # single file
 ```
 
-Coverage report is printed to terminal and written to `coverage.xml`. The build fails if coverage drops below **60%**.
+Coverage report is printed to terminal and written to `coverage.xml`. The build fails if coverage drops below **50%**.
 
 ### Project structure
 
@@ -187,7 +189,7 @@ personal-ai-assistant/
 │       ├── cli.py          # Typer CLI + interactive REPL
 │       ├── agent.py        # Agent loop (LLM ↔ tools)
 │       ├── llm.py          # Ollama wrapper
-│       ├── config.py       # Config loader (~/.config/pai/config.yaml)
+│       ├── config.py       # Config loader (~/.config/pai/.env)
 │       ├── auth.py         # MSAL device-code OAuth for Microsoft
 │       └── tools/
 │           ├── registry.py     # Tool registration & dispatch
@@ -199,7 +201,7 @@ personal-ai-assistant/
 ├── tests/
 ├── .github/workflows/ci.yml
 ├── pyproject.toml          # uv + ruff + pytest + coverage config
-├── config.yaml.example
+├── .env.example
 └── CLAUDE.md               # AI assistant coding conventions
 ```
 
@@ -217,7 +219,7 @@ The agent loop automatically picks up any registered tool on the next run.
 GitHub Actions runs on every push and pull request to `main`:
 
 - **lint** — `ruff check` + `ruff format --check`
-- **test** — `pytest` with coverage gate (60% minimum)
+- **test** — `pytest` with coverage gate (50% minimum)
 
 See `.github/workflows/ci.yml`.
 

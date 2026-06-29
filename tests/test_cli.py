@@ -24,7 +24,7 @@ def test_ensure_config_does_not_raise():
 
 def test_ensure_config_mkdir_via_direct_call(tmp_path):
     """Directly exercise the mkdir branch by calling it as _ensure_config would."""
-    cfg_path = tmp_path / "subdir" / "config.yaml"
+    cfg_path = tmp_path / "subdir" / ".env"
     assert not cfg_path.parent.exists()
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     assert cfg_path.parent.exists()
