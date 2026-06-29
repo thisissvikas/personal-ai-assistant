@@ -1,0 +1,18 @@
+# Personal AI Assistant — configuration
+# Copy to ~/.config/pai/config.yaml and fill in your values
+
+model: qwen2.5:7b           # Ollama model name (qwen2.5:7b recommended for tool calling)
+ollama_host: http://localhost:11434
+
+microsoft:
+  client_id: <your-azure-app-client-id>
+  tenant_id: <your-azure-tenant-id>
+
+notes:
+  folder: Personal           # Apple Notes folder name
+
+search:
+  max_results: 5
+
+# Optional: override system timezone (defaults to local system timezone)
+# timezone: America/New_York
