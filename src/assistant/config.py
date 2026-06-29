@@ -2,37 +2,32 @@ import os
 from pathlib import Path
 from typing import Any
 
-import yaml
+from dotenv import dotenv_values
 
-_CONFIG_PATH = Path(os.environ.get("PAI_CONFIG", Path.home() / ".config" / "pai" / "config.yaml"))
-
-_DEFAULTS: dict[str, Any] = {
-    "model": "qwen2.5:7b",
-    "ollama_host": "http://localhost:11434",
-    "microsoft": {},
-    "notes": {"folder": "Personal"},
-    "search": {"max_results": 5},
-}
-
-
-def _deep_merge(base: dict, override: dict) -> dict:
-    result = dict(base)
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
+_ENV_PATH = Path(os.environ.get("PAI_ENV_FILE", Path.home() / ".config" / "pai" / ".env"))
 
 
 def load() -> dict[str, Any]:
-    cfg = dict(_DEFAULTS)
-    if _CONFIG_PATH.exists():
-        with open(_CONFIG_PATH) as f:
-            user = yaml.safe_load(f) or {}
-        cfg = _deep_merge(cfg, user)
-    return cfg
+    file_vals = dotenv_values(_ENV_PATH)
+
+    def _get(key: str, default: str) -> str:
+        return os.environ.get(key) or file_vals.get(key) or default
+
+    return {
+        "model": _get("PAI_MODEL", "qwen2.5:7b"),
+        "ollama_host": _get("PAI_OLLAMA_HOST", "http://localhost:11434"),
+        "microsoft": {
+            "client_id": _get("MICROSOFT_CLIENT_ID", ""),
+            "tenant_id": _get("MICROSOFT_TENANT_ID", ""),
+        },
+        "notes": {
+            "folder": _get("PAI_NOTES_FOLDER", "Personal"),
+        },
+        "search": {
+            "max_results": int(_get("PAI_SEARCH_MAX_RESULTS", "5")),
+        },
+    }
 
 
 def config_path() -> Path:
-    return _CONFIG_PATH
+    return _ENV_PATH

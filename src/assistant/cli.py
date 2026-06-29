@@ -24,7 +24,7 @@ def _ensure_config() -> None:
         console.print(
             Panel(
                 f"[yellow]Config file not found.[/yellow]\n\n"
-                f"Copy [bold]config.yaml.example[/bold] to:\n"
+                f"Copy [bold].env.example[/bold] to:\n"
                 f"  [cyan]{cfg_path}[/cyan]\n\n"
                 f"and fill in your values. Running with defaults for now.",
                 title="Setup",
