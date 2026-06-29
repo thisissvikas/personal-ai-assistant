@@ -1,50 +1,16 @@
-"""Tests for the Ollama LLM wrapper."""
+"""Tests for the LLM wrapper."""
 
 from unittest.mock import MagicMock, patch
 
-
-def test_chat_passes_model_and_messages():
-    fake_response = MagicMock()
-    mock_client = MagicMock()
-    mock_client.chat.return_value = fake_response
-
-    with patch("ollama.Client", return_value=mock_client):
-        from assistant.llm import chat
-
-        result = chat(model="qwen2.5:7b", messages=[{"role": "user", "content": "hi"}])
-
-    mock_client.chat.assert_called_once()
-    call_kwargs = mock_client.chat.call_args[1]
-    assert call_kwargs["model"] == "qwen2.5:7b"
-    assert result is fake_response
+from langchain_ollama import ChatOllama
 
 
-def test_chat_passes_tools_when_provided():
-    mock_client = MagicMock()
-    mock_client.chat.return_value = MagicMock()
+def test_get_chat_model_returns_chat_ollama():
+    from assistant.llm import get_chat_model
 
-    tools = [{"type": "function", "function": {"name": "noop"}}]
-    with patch("ollama.Client", return_value=mock_client):
-        from assistant.llm import chat
-
-        chat(model="qwen2.5:7b", messages=[], tools=tools)
-
-    call_kwargs = mock_client.chat.call_args[1]
-    assert "tools" in call_kwargs
-    assert call_kwargs["tools"] == tools
-
-
-def test_chat_omits_tools_when_none():
-    mock_client = MagicMock()
-    mock_client.chat.return_value = MagicMock()
-
-    with patch("ollama.Client", return_value=mock_client):
-        from assistant.llm import chat
-
-        chat(model="qwen2.5:7b", messages=[])
-
-    call_kwargs = mock_client.chat.call_args[1]
-    assert "tools" not in call_kwargs
+    model = get_chat_model("qwen2.5:7b", "http://localhost:11434")
+    assert isinstance(model, ChatOllama)
+    assert model.model == "qwen2.5:7b"
 
 
 def test_is_available_returns_true_for_known_model():

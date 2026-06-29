@@ -18,6 +18,8 @@ dependencies = [
     "msal>=1.28.0",
     "duckduckgo-search>=6.0.0",
     "pypdf>=4.0.0",
+    "langgraph>=0.2",
+    "langchain-ollama>=0.2",
 ]
 
 [project.scripts]

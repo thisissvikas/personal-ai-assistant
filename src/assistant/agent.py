@@ -1,4 +1,9 @@
-from typing import Any
+from typing import Annotated, TypedDict
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import END, StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
 
 from . import config as cfg_module
 from . import llm
@@ -17,67 +22,46 @@ For brainstorming or general questions, just respond — no tool needed.
 When using tools, confirm what you did with a short summary.
 """
 
-MAX_TOOL_ROUNDS = 8
+
+class _State(TypedDict):
+    messages: Annotated[list, add_messages]
 
 
 class Agent:
     def __init__(self, model: str | None = None) -> None:
-        self._cfg = cfg_module.load()
-        self._model: str = model or self._cfg["model"]
-        self._host: str = self._cfg["ollama_host"]
-        self._history: list[dict[str, Any]] = [{"role": "system", "content": _SYSTEM_PROMPT}]
+        cfg = cfg_module.load()
+        self._model: str = model or cfg["model"]
+        self._host: str = cfg["ollama_host"]
+        self._history: list = [SystemMessage(content=_SYSTEM_PROMPT)]
+        self._graph = self._build_graph()
 
-    def reset(self) -> None:
-        self._history = [{"role": "system", "content": _SYSTEM_PROMPT}]
+    def _build_graph(self):
+        tool_list = registry.tools()
+        bound_llm = llm.get_chat_model(self._model, self._host).bind_tools(tool_list)
+        tool_node = ToolNode(tool_list)
+
+        def call_model(state: _State):
+            return {"messages": [bound_llm.invoke(state["messages"])]}
+
+        def should_continue(state: _State):
+            return "tools" if state["messages"][-1].tool_calls else END
+
+        g = StateGraph(_State)
+        g.add_node("call_model", call_model)
+        g.add_node("tools", tool_node)
+        g.set_entry_point("call_model")
+        g.add_conditional_edges("call_model", should_continue)
+        g.add_edge("tools", "call_model")
+        return g.compile()
 
     def chat(self, user_input: str) -> str:
-        self._history.append({"role": "user", "content": user_input})
-        tools = registry.schemas()
+        self._history.append(HumanMessage(content=user_input))
+        result = self._graph.invoke({"messages": self._history})
+        self._history = result["messages"]
+        return self._history[-1].content or ""
 
-        for _ in range(MAX_TOOL_ROUNDS):
-            response = llm.chat(
-                model=self._model,
-                messages=self._history,
-                tools=tools or None,
-                host=self._host,
-            )
-            msg = response.message
-
-            if msg.tool_calls:
-                self._history.append(
-                    {
-                        "role": "assistant",
-                        "content": msg.content or "",
-                        "tool_calls": [
-                            {
-                                "id": tc.id if hasattr(tc, "id") else f"call_{i}",
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                },
-                            }
-                            for i, tc in enumerate(msg.tool_calls)
-                        ],
-                    }
-                )
-
-                for i, tc in enumerate(msg.tool_calls):
-                    result = registry.execute(tc.function.name, dict(tc.function.arguments))
-                    tool_id = tc.id if hasattr(tc, "id") else f"call_{i}"
-                    self._history.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_id,
-                            "content": str(result),
-                        }
-                    )
-            else:
-                text = msg.content or ""
-                self._history.append({"role": "assistant", "content": text})
-                return text
-
-        return "Reached maximum tool-call rounds without a final answer."
+    def reset(self) -> None:
+        self._history = [SystemMessage(content=_SYSTEM_PROMPT)]
 
     @property
     def model(self) -> str:

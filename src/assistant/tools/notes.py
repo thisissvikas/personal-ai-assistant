@@ -1,44 +1,9 @@
 import subprocess
 
+from langchain_core.tools import StructuredTool
+
 from .. import config as cfg_module
 from .registry import register
-
-_CREATE_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "create_note",
-        "description": (
-            "Create a new note in Apple Notes with the given title and body text. "
-            "Use this when the user asks you to take a note, jot something down, "
-            "or save information for later."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string", "description": "The note title"},
-                "body": {"type": "string", "description": "The note content/body"},
-            },
-            "required": ["title", "body"],
-        },
-    },
-}
-
-_SEARCH_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "search_notes",
-        "description": (
-            "Search through existing Apple Notes by keyword. Returns matching note titles and content snippets."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search keyword or phrase"},
-            },
-            "required": ["query"],
-        },
-    },
-}
 
 
 def _escape_applescript(text: str) -> str:
@@ -95,5 +60,25 @@ return matchingNotes
     return output
 
 
-register(_CREATE_SCHEMA, _create_note)
-register(_SEARCH_SCHEMA, _search_notes)
+register(
+    StructuredTool.from_function(
+        func=_create_note,
+        name="create_note",
+        description=(
+            "Create a new note in Apple Notes with the given title and body text. "
+            "Use this when the user asks you to take a note, jot something down, "
+            "or save information for later."
+        ),
+    )
+)
+
+register(
+    StructuredTool.from_function(
+        func=_search_notes,
+        name="search_notes",
+        description=(
+            "Search through existing Apple Notes by keyword. "
+            "Returns matching note titles and content snippets."
+        ),
+    )
+)

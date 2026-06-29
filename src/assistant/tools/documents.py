@@ -1,33 +1,9 @@
 import os
 from pathlib import Path
 
-from .registry import register
+from langchain_core.tools import StructuredTool
 
-_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "read_document",
-        "description": (
-            "Read the contents of a local file (PDF, markdown, or plain text) so you can "
-            "answer questions about it. Supports .pdf, .md, .txt, and similar text formats."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Absolute or home-relative (~/...) path to the file",
-                },
-                "max_chars": {
-                    "type": "integer",
-                    "description": "Maximum characters to return (default 12000)",
-                    "default": 12000,
-                },
-            },
-            "required": ["path"],
-        },
-    },
-}
+from .registry import register
 
 _MAX_CHARS = 12_000
 
@@ -67,4 +43,13 @@ def _read_document(path: str, max_chars: int = _MAX_CHARS) -> str:
     return f"Contents of {resolved.name}:\n\n{text}"
 
 
-register(_SCHEMA, _read_document)
+register(
+    StructuredTool.from_function(
+        func=_read_document,
+        name="read_document",
+        description=(
+            "Read the contents of a local file (PDF, markdown, or plain text) so you can "
+            "answer questions about it. Supports .pdf, .md, .txt, and similar text formats."
+        ),
+    )
+)
