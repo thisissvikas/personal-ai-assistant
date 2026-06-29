@@ -60,9 +60,8 @@ cd personal-ai-assistant
 uv sync
 
 # 3. Copy and edit config
-mkdir -p ~/.config/pai
-cp .env.example ~/.config/pai/.env
-# → edit ~/.config/pai/.env with your settings
+cp .env.example .env
+# → edit .env with your settings
 ```
 
 ### Verify installation
@@ -75,10 +74,10 @@ uv run pai --help
 
 ## Configuration
 
-Config lives at `~/.config/pai/.env`. Copy the example and fill in your values:
+Config lives at `.env` in the project root. Copy the example and fill in your values:
 
 ```bash
-cp .env.example ~/.config/pai/.env
+cp .env.example .env
 ```
 
 ```ini
@@ -92,7 +91,7 @@ PAI_NOTES_FOLDER=Personal
 PAI_SEARCH_MAX_RESULTS=5
 ```
 
-All values have sensible defaults — for local-only usage (no Outlook/Teams) you can skip the `MICROSOFT_*` vars entirely. You can also override any setting by exporting the variable in your shell before running `pai`.
+All values have sensible defaults — for local-only usage (no Outlook/Teams) you can skip the `MICROSOFT_*` vars entirely. You can also override any setting with a shell environment variable, which takes precedence over `.env`. To use a different file location, set `PAI_ENV_FILE=/path/to/.env`.
 
 ### Microsoft 365 setup (Outlook + Teams)
 
@@ -109,9 +108,9 @@ Outlook and Teams use the **Microsoft Graph API**. You need a free Azure AD app 
    - `User.Read`
    - `User.ReadBasic.All`
    - `MailboxSettings.Read`
-5. Copy **Application (client) ID** and **Directory (tenant) ID** into `~/.config/pai/.env`
+5. Copy **Application (client) ID** and **Directory (tenant) ID** into `.env`
 
-**First run with Microsoft tools:** `pai` will print a device-code URL. Open it, log in with your work account once — the token is cached forever at `~/.config/pai/token_cache.json`.
+**First run with Microsoft tools:** `pai` will print a device-code URL. Open it, log in with your work account once — the token is cached at `~/.config/pai/token_cache.json`.
 
 ---
 

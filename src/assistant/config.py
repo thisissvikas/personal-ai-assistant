@@ -4,7 +4,7 @@ from typing import Any
 
 from dotenv import dotenv_values
 
-_ENV_PATH = Path(os.environ.get("PAI_ENV_FILE", Path.home() / ".config" / "pai" / ".env"))
+_ENV_PATH = Path(os.environ.get("PAI_ENV_FILE", ".env"))
 
 
 def load() -> dict[str, Any]:
