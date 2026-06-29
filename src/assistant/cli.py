@@ -11,7 +11,10 @@ from . import config as cfg_module
 from . import llm
 from .agent import Agent
 
-# Tool imports — each registers itself on import
+# Tool imports — each module calls registry.register() at import time.
+# These must be imported BEFORE Agent() is constructed: _build_graph() captures
+# registry.tools() once at compile time, so any tool imported after that point
+# will not be visible to the LLM.
 from .tools import documents, notes, registry, search  # noqa: F401
 
 app = typer.Typer(add_completion=False)
@@ -19,12 +22,13 @@ console = Console()
 
 
 def _ensure_config() -> None:
-    cfg_path = cfg_module.config_path()
-    if not cfg_path.exists():
+    """Warn the user when no .env config file is found and continue with defaults."""
+    config_file_path = cfg_module.config_path()
+    if not config_file_path.exists():
         console.print(
             Panel(
                 f"[yellow]Config file not found.[/yellow]\n\n"
-                f"Copy [bold].env.example[/bold] to [cyan]{cfg_path}[/cyan] "
+                f"Copy [bold].env.example[/bold] to [cyan]{config_file_path}[/cyan] "
                 f"and fill in your values. Running with defaults for now.",
                 title="Setup",
                 border_style="yellow",
@@ -33,6 +37,7 @@ def _ensure_config() -> None:
 
 
 def _check_ollama(agent: Agent) -> None:
+    """Abort with a helpful message if the configured model is not available in Ollama."""
     if not llm.is_available(agent.model, agent.host):
         console.print(
             f"[red]Model [bold]{agent.model}[/bold] not found in Ollama at {agent.host}.[/red]\n"
@@ -42,6 +47,7 @@ def _check_ollama(agent: Agent) -> None:
 
 
 def _run_query(agent: Agent, query: str) -> str:
+    """Send a query to the agent, showing a spinner while waiting for the response."""
     with Live(
         Spinner("dots", text=Text("Thinking…", style="dim")),
         console=console,
@@ -68,8 +74,8 @@ def main(
 
     _check_ollama(agent)
 
-    tools_loaded = registry.available_names()
-    tool_str = ", ".join(tools_loaded) if tools_loaded else "none"
+    loaded_tool_names = registry.available_names()
+    tools_summary = ", ".join(loaded_tool_names) if loaded_tool_names else "none"
 
     # Single-shot mode
     if query:
@@ -81,7 +87,7 @@ def main(
     console.print(
         Panel(
             f"[bold green]Personal AI Assistant[/bold green]\n"
-            f"Model: [cyan]{agent.model}[/cyan]  |  Tools: [cyan]{tool_str}[/cyan]\n\n"
+            f"Model: [cyan]{agent.model}[/cyan]  |  Tools: [cyan]{tools_summary}[/cyan]\n\n"
             f"Type [bold]/help[/bold] for commands, [bold]/quit[/bold] or Ctrl+D to exit.",
             border_style="green",
         )
@@ -98,7 +104,6 @@ def main(
         if not user_input:
             continue
 
-        # Built-in REPL commands
         if user_input.lower() in ("/quit", "/exit", "/q"):
             console.print("[dim]Goodbye.[/dim]")
             break
@@ -107,8 +112,8 @@ def main(
             console.print("[dim]Conversation history cleared.[/dim]")
             continue
         if user_input.lower() == "/tools":
-            names = registry.available_names()
-            console.print("Available tools: " + (", ".join(names) if names else "none"))
+            tool_names = registry.available_names()
+            console.print("Available tools: " + (", ".join(tool_names) if tool_names else "none"))
             continue
         if user_input.lower() == "/help":
             console.print(

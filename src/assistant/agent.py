@@ -9,6 +9,8 @@ from . import config as cfg_module
 from . import llm
 from .tools import registry
 
+MAX_TOOL_ROUNDS = 16
+
 _SYSTEM_PROMPT = """You are a personal AI assistant running on the user's computer.
 You have access to tools for:
 - Reading and scheduling Outlook calendar events
@@ -29,6 +31,7 @@ class _State(TypedDict):
 
 class Agent:
     def __init__(self, model: str | None = None) -> None:
+        """Load config, set up the LLM + tools, and compile the LangGraph agent graph."""
         cfg = cfg_module.load()
         self._model: str = model or cfg["model"]
         self._host: str = cfg["ollama_host"]
@@ -36,6 +39,11 @@ class Agent:
         self._graph = self._build_graph()
 
     def _build_graph(self):
+        """Build and compile the two-node ReAct graph: call_model ↔ tools.
+
+        The graph loops until the LLM produces a response with no tool calls,
+        at which point the conditional edge routes to END.
+        """
         tool_list = registry.tools()
         bound_llm = llm.get_chat_model(self._model, self._host).bind_tools(tool_list)
         tool_node = ToolNode(tool_list)
@@ -46,21 +54,30 @@ class Agent:
         def should_continue(state: _State):
             return "tools" if state["messages"][-1].tool_calls else END
 
-        g = StateGraph(_State)
-        g.add_node("call_model", call_model)
-        g.add_node("tools", tool_node)
-        g.set_entry_point("call_model")
-        g.add_conditional_edges("call_model", should_continue)
-        g.add_edge("tools", "call_model")
-        return g.compile()
+        graph_builder = StateGraph(_State)
+        graph_builder.add_node("call_model", call_model)
+        graph_builder.add_node("tools", tool_node)
+        graph_builder.set_entry_point("call_model")
+        graph_builder.add_conditional_edges("call_model", should_continue)
+        graph_builder.add_edge("tools", "call_model")
+        return graph_builder.compile()
 
     def chat(self, user_input: str) -> str:
-        self._history.append(HumanMessage(content=user_input))
-        result = self._graph.invoke({"messages": self._history})
+        """Send a message and return the assistant's reply.
+
+        Builds an immutable message snapshot before invoking the graph so that
+        a failed invocation cannot leave ``_history`` in a partially-mutated
+        state. Stores the full updated list only on success.
+        """
+        result = self._graph.invoke(
+            {"messages": [*self._history, HumanMessage(content=user_input)]},
+            config={"recursion_limit": MAX_TOOL_ROUNDS},
+        )
         self._history = result["messages"]
         return self._history[-1].content or ""
 
     def reset(self) -> None:
+        """Clear conversation history, keeping only the system prompt."""
         self._history = [SystemMessage(content=_SYSTEM_PROMPT)]
 
     @property

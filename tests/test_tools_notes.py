@@ -5,11 +5,6 @@ from unittest.mock import MagicMock, patch
 
 
 def _get_notes_fns():
-    import sys
-
-    for k in list(sys.modules):
-        if "assistant.tools" in k:
-            del sys.modules[k]
     from assistant.tools.notes import _create_note, _search_notes
 
     return _create_note, _search_notes
@@ -67,13 +62,10 @@ def test_search_notes_not_found():
     assert "No notes found" in result
 
 
-def test_escape_applescript_handles_quotes():
-    import sys
-
-    for k in list(sys.modules):
-        if "assistant.tools.notes" in k:
-            del sys.modules[k]
+def test_escape_applescript_handles_special_chars():
     from assistant.tools.notes import _escape_applescript
 
     assert _escape_applescript('say "hello"') == 'say \\"hello\\"'
     assert _escape_applescript("back\\slash") == "back\\\\slash"
+    assert "\n" not in _escape_applescript("line1\nline2")
+    assert "\r" not in _escape_applescript("line1\r\nline2")

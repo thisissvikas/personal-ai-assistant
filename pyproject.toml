@@ -20,6 +20,7 @@ dependencies = [
     "pypdf>=4.0.0",
     "langgraph>=0.2",
     "langchain-ollama>=0.2",
+    "tzlocal>=5.4.4",
 ]
 
 [project.scripts]
@@ -84,7 +85,7 @@ addopts = [
     "--cov=assistant",
     "--cov-report=term-missing",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=50",
+    "--cov-fail-under=60",
 ]
 
 [tool.coverage.run]

@@ -2,46 +2,50 @@ import httpx
 from langchain_core.tools import StructuredTool
 
 from .. import auth
-from .. import config as cfg_module
 from .registry import register
 
 _GRAPH = "https://graph.microsoft.com/v1.0"
 
 
-def _token() -> str:
-    cfg = cfg_module.load()
-    ms = cfg.get("microsoft", {})
-    return auth.get_token(ms["client_id"], ms["tenant_id"])
-
-
 def _find_teams_user(name: str) -> str:
-    token = _token()
-    resp = httpx.get(
+    """Search Microsoft 365 users by display name or email prefix.
+
+    Returns up to 5 matches with display name, email, and user ID. Useful
+    when the caller only has a person's name and needs their ID for a DM.
+    """
+    safe_name = name.replace("'", "")  # guard against OData literal injection
+    access_token = auth.get_graph_token()
+    response = httpx.get(
         f"{_GRAPH}/users",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {access_token}"},
         params={
-            "$filter": f"startsWith(displayName, '{name}') or startsWith(mail, '{name}')",
+            "$filter": f"startsWith(displayName, '{safe_name}') or startsWith(mail, '{safe_name}')",
             "$select": "id,displayName,mail",
             "$top": 5,
         },
     )
-    resp.raise_for_status()
-    users = resp.json().get("value", [])
+    response.raise_for_status()
+    users = response.json().get("value", [])
 
     if not users:
         return f"No users found matching '{name}'."
 
-    lines = []
-    for u in users:
-        lines.append(f"• {u['displayName']} — {u.get('mail', 'no email')} (id: {u['id']})")
-    return "\n".join(lines)
+    return "\n".join(
+        f"• {user_entry['displayName']} — {user_entry.get('mail', 'no email')} (id: {user_entry['id']})"
+        for user_entry in users
+    )
 
 
 def _send_teams_dm(user: str, message: str) -> str:
-    token = _token()
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    """Send a 1:1 Teams DM to the given user email or Microsoft user ID.
 
-    chat_resp = httpx.post(
+    Creates the oneOnOne chat if it doesn't already exist (Graph handles
+    deduplication automatically), then posts the message.
+    """
+    access_token = auth.get_graph_token()
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+    chat_response = httpx.post(
         f"{_GRAPH}/me/chats",
         headers=headers,
         json={
@@ -60,61 +64,66 @@ def _send_teams_dm(user: str, message: str) -> str:
             ],
         },
     )
-    chat_resp.raise_for_status()
-    chat_id = chat_resp.json()["id"]
+    chat_response.raise_for_status()
+    chat_id = chat_response.json()["id"]
 
-    msg_resp = httpx.post(
+    message_response = httpx.post(
         f"{_GRAPH}/chats/{chat_id}/messages",
         headers=headers,
         json={"body": {"content": message}},
     )
-    msg_resp.raise_for_status()
+    message_response.raise_for_status()
 
     return f"Message sent to {user} on Teams."
 
 
 def _send_channel_message(team_name: str, channel_name: str, message: str) -> str:
-    token = _token()
-    headers = {"Authorization": f"Bearer {token}"}
+    """Post a message to a Teams channel, resolving team and channel by display name.
 
-    teams_resp = httpx.get(
+    Returns a helpful error listing available teams or channels when the
+    requested name is not found.
+    """
+    access_token = auth.get_graph_token()
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    teams_response = httpx.get(
         f"{_GRAPH}/me/joinedTeams",
         headers=headers,
         params={"$select": "id,displayName"},
     )
-    teams_resp.raise_for_status()
-    teams = teams_resp.json().get("value", [])
+    teams_response.raise_for_status()
+    joined_teams = teams_response.json().get("value", [])
 
-    team = next(
-        (t for t in teams if t["displayName"].lower() == team_name.lower()),
+    matched_team = next(
+        (team for team in joined_teams if team["displayName"].lower() == team_name.lower()),
         None,
     )
-    if not team:
-        team_names = ", ".join(t["displayName"] for t in teams)
-        return f"Team '{team_name}' not found. Your teams: {team_names}"
+    if not matched_team:
+        available_teams = ", ".join(team["displayName"] for team in joined_teams)
+        return f"Team '{team_name}' not found. Your teams: {available_teams}"
 
-    chan_resp = httpx.get(
-        f"{_GRAPH}/teams/{team['id']}/channels",
+    channels_response = httpx.get(
+        f"{_GRAPH}/teams/{matched_team['id']}/channels",
         headers=headers,
         params={"$select": "id,displayName"},
     )
-    chan_resp.raise_for_status()
-    channels = chan_resp.json().get("value", [])
+    channels_response.raise_for_status()
+    team_channels = channels_response.json().get("value", [])
 
-    channel = next(
-        (c for c in channels if c["displayName"].lower() == channel_name.lower()),
+    matched_channel = next(
+        (ch for ch in team_channels if ch["displayName"].lower() == channel_name.lower()),
         None,
     )
-    if not channel:
-        chan_names = ", ".join(c["displayName"] for c in channels)
-        return f"Channel '{channel_name}' not found in {team_name}. Channels: {chan_names}"
+    if not matched_channel:
+        available_channels = ", ".join(ch["displayName"] for ch in team_channels)
+        return f"Channel '{channel_name}' not found in {team_name}. Channels: {available_channels}"
 
-    post_resp = httpx.post(
-        f"{_GRAPH}/teams/{team['id']}/channels/{channel['id']}/messages",
+    post_response = httpx.post(
+        f"{_GRAPH}/teams/{matched_team['id']}/channels/{matched_channel['id']}/messages",
         headers={**headers, "Content-Type": "application/json"},
         json={"body": {"content": message}},
     )
-    post_resp.raise_for_status()
+    post_response.raise_for_status()
 
     return f"Message posted to #{channel_name} in {team_name}."
 
